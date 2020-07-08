@@ -178,8 +178,8 @@ main = withUtf8Encoding $ withTracers $ \tracers -> do
                 PortCLI.spec @t
                 NetworkCLI.spec @t
 
-testPoolConfigs :: [PoolConfig]
-testPoolConfigs =
+poolConfigs :: [PoolConfig]
+poolConfigs =
     [ PoolConfig {retirementEpoch = Nothing}
     , PoolConfig {retirementEpoch = Just 1_000}
     , PoolConfig {retirementEpoch = Just 1_000_000}
@@ -224,21 +224,21 @@ specWithServer (tr, tracers) = aroundAll withContext . after tearDown
         minSev <- nodeMinSeverityFromEnv
         let tr' = contramap MsgCluster tr
         withSystemTempDir tr' "test" $ \dir ->
-            withCluster tr' minSev testPoolConfigs dir $
-                \socketPath block0 (gp, vData) ->
-                    withTempDir tr' dir "wallets" $ \db -> do
-                        serveWallet @(IO Shelley)
-                            (SomeNetworkDiscriminant $ Proxy @'Mainnet)
-                            tracers
-                            (SyncTolerance 10)
-                            (Just db)
-                            "127.0.0.1"
-                            ListenOnRandomPort
-                            Nothing
-                            socketPath
-                            block0
-                            (gp, vData)
-                            (onStart gp)
+            withCluster tr' minSev poolConfigs dir $ \socket block0 (gp, vData) ->
+                withTempDir tr' dir "wallets" $ \db -> do
+                    serveWallet @(IO Shelley)
+                        (SomeNetworkDiscriminant $ Proxy @'Mainnet)
+                        tracers
+                        (SyncTolerance 10)
+                        (Just db)
+                        "127.0.0.1"
+                        ListenOnRandomPort
+                        Nothing
+                        Nothing
+                        socket
+                        block0
+                        (gp, vData)
+                        (onStart gp)
 
     -- | teardown after each test (currently only deleting all wallets)
     tearDown :: Context t -> IO ()
