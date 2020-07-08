@@ -124,7 +124,7 @@ import Cardano.Wallet.Shelley.Network
     ( NetworkLayerLog, withNetworkLayer )
 import Cardano.Wallet.Shelley.Pools
     ( StakePoolLayer (..)
-    , StakePoolLog
+    , StakePoolLog (..)
     , monitorMetadata
     , monitorStakePools
     , newStakePoolLayer
@@ -325,12 +325,13 @@ serveWallet
         Pool.withDBLayer poolsDbTracer (Pool.defaultFilePath <$> dir) ti $ \db -> do
             let spl = newStakePoolLayer (genesisParameters np) nl db
             void $ forkFinally (monitorStakePools tr gp nl db) onExit
-            fetch <- fetchFromRemote fetchStrategies
+            fetch <- fetchFromRemote trFetch fetchStrategies
                 <$> newManager defaultManagerSettings
             void $ forkFinally (monitorMetadata tr gp fetch db) onExit
             action spl
       where
         tr = contramap (MsgFromWorker mempty) poolsEngineTracer
+        trFetch = contramap MsgFetchPoolMetadata tr
         onExit = defaultWorkerAfter poolsEngineTracer
         fetchStrategies = maybe
             [identityUrlBuilder]
