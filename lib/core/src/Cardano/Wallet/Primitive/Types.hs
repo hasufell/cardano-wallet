@@ -223,6 +223,8 @@ import Data.Map.Strict
     ( Map )
 import Data.Maybe
     ( fromMaybe, isJust )
+import Data.Ord
+    ( comparing )
 import Data.Proxy
     ( Proxy (..) )
 import Data.Quantity
@@ -931,7 +933,7 @@ data PendingTx = PendingTx
     deriving (Generic, Eq, Show)
 
 instance Ord PendingTx where
-    compare (PendingTx a _) (PendingTx b _) = compare a b
+    compare = comparing pendingTx
 
 instance NFData PendingTx
 
