@@ -98,12 +98,18 @@ TxMeta
     deriving Show Generic
 
 -- Metadata for a transaction which has been submitted but has
--- not yet appeared in the ledger.
+-- not yet appeared in a stable block of the ledger.
+--
+-- A transaction is removed from the wallet pending set once
+-- it appears in the ledger -- i.e. txPendingAccepted is not
+-- Nothing. However, it is not removed from this table until
+-- it can never be rolled back.
 TxPending
     txPendingTxId      TxId            sql=tx_id
     txPendingWalletId  W.WalletId      sql=wallet_id
     txPendingAmount    Natural         sql=amount
-    txPendingExpiry    W.SlotId        sql=expiry
+    txPendingExpiry    W.SlotId        sql=expiry_slot
+    txPendingAccepted  W.SlotId Maybe  sql=accepted_slot
 
     Primary txPendingTxId txPendingWalletId
     Foreign Wallet fk_wallet_pending_tx txPendingWalletId ! ON DELETE CASCADE
