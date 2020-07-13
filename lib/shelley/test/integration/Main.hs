@@ -127,11 +127,10 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 -- TODO: enable when byron transactions/addresses supported in the cardano-node
--- import qualified Test.Integration.Scenario.API.Byron.Addresses as ByronAddresses
--- import qualified Test.Integration.Scenario.API.Byron.Migrations as ByronMigrations
--- import qualified Test.Integration.Byron.Scenario.API.Transactions as ByronTransactions
--- import qualified Test.Integration.Scenario.API.Byron.Transactions as ByronTransactionsCommon
--- import qualified Test.Integration.Scenario.API.Byron.HWWallets as ByronHWWallets
+import qualified Test.Integration.Scenario.API.Byron.Transactions as ByronTransactionsCommon
+import qualified Test.Integration.Scenario.API.Byron.Addresses as ByronAddresses
+import qualified Test.Integration.Scenario.API.Byron.Migrations as ByronMigrations
+import qualified Test.Integration.Scenario.API.Byron.HWWallets as ByronHWWallets
 import qualified Test.Integration.Scenario.API.Byron.Wallets as ByronWallets
 import qualified Test.Integration.Scenario.API.Network as Network
 import qualified Test.Integration.Scenario.API.Shelley.Addresses as Addresses
@@ -170,6 +169,10 @@ main = withUtf8Encoding $ withTracers $ \tracers -> do
                 Network.spec
                 Network_.spec
                 StakePools.spec @n
+                ByronAddresses.spec @n
+                ByronMigrations.spec @n
+                ByronHWWallets.spec @n
+                ByronTransactionsCommon.spec @n
             describe "CLI Specifications" $ do
                 AddressesCLI.spec @n
                 TransactionsCLI.spec @n
