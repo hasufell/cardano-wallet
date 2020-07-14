@@ -226,7 +226,7 @@ data DBLayer m s k = forall stm. (MonadIO stm, MonadFail stm) => DBLayer
         -> Range SlotId
         -> stm [TransactionInfo]
         -- ^ Fetch the current transaction history of a known wallet, ordered by
-        -- descending slot number.
+        -- slot number.
         --
         -- Returns an empty list if the wallet isn't found.
 
@@ -239,14 +239,13 @@ data DBLayer m s k = forall stm. (MonadIO stm, MonadFail stm) => DBLayer
         --
         -- If the wallet doesn't exist, this operation returns an error.
 
-    , readTxHistory
+    , readTxPending
         :: PrimaryKey WalletId
-        -> Maybe (Quantity "lovelace" Natural)
         -> SortOrder
         -> Range SlotId
         -> stm [TransactionInfo]
         -- ^ Fetch the current transaction history of a known wallet, ordered by
-        -- descending slot number.
+        -- slot number first submitted.
         --
         -- Returns an empty list if the wallet isn't found.
 

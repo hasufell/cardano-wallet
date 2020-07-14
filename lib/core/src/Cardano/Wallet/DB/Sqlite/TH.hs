@@ -105,11 +105,12 @@ TxMeta
 -- Nothing. However, it is not removed from this table until
 -- it can never be rolled back.
 TxPending
-    txPendingTxId      TxId            sql=tx_id
-    txPendingWalletId  W.WalletId      sql=wallet_id
-    txPendingAmount    Natural         sql=amount
-    txPendingExpiry    W.SlotId        sql=expiry_slot
-    txPendingAccepted  W.SlotId Maybe  sql=accepted_slot
+    txPendingTxId          TxId            sql=tx_id
+    txPendingWalletId      W.WalletId      sql=wallet_id
+    txPendingAmount        Natural         sql=amount
+    txPendingSlotCreated   W.SlotId        sql=slot_created
+    txPendingSlotExpires   W.SlotId        sql=slot_expires
+    txPendingSlotAccepted  W.SlotId Maybe  sql=slot_accepted
 
     Primary txPendingTxId txPendingWalletId
     Foreign Wallet fk_wallet_pending_tx txPendingWalletId ! ON DELETE CASCADE

@@ -688,11 +688,16 @@ newDBLayer trace defaultFieldValues mDatabaseFile = do
                     putTxs txins txouts txws
                     pure $ Right ()
 
-        , readTxHistory = \(PrimaryKey wid) minWithdrawal order range status -> do
+        , readTxHistory = \(PrimaryKey wid) minWithdrawal order range -> do
             selectTxHistory wid minWithdrawal order $ catMaybes
                 [ (TxMetaSlot >=.) <$> W.inclusiveLowerBound range
                 , (TxMetaSlot <=.) <$> W.inclusiveUpperBound range
-                , (TxMetaStatus ==.) <$> status
+                ]
+
+        , readTxPending = \(PrimaryKey wid) order range -> do
+            selectTxPending wid order $ catMaybes
+                [ (TxPendingSlotCreated >=.) <$> W.inclusiveLowerBound range
+                , (TxPendingSlotCreated <=.) <$> W.inclusiveUpperBound range
                 ]
 
         , removePendingTx = \(PrimaryKey wid) tid -> ExceptT $ do
@@ -719,7 +724,9 @@ newDBLayer trace defaultFieldValues mDatabaseFile = do
                 Just _ -> do
                     metas <- selectTxHistory wid Nothing W.Descending
                             [ TxMetaTxId ==. (TxId tid) ]
-                    case metas of
+                    pendings <- selectTxPending wid W.Descending
+                            [ TxPendingTxId ==. (TxId tid) ]
+                    case metas ++ pendings of
                         [] -> pure (Right Nothing)
                         meta:_ -> pure (Right $ Just meta)
 
@@ -1089,6 +1096,60 @@ txHistoryFromEntity sp tip metas ins outs ws =
         , W.amount = Quantity (txMetaAmount m)
         }
 
+txHistoryFromPendingEntity
+    :: W.SlotParameters
+    -> W.BlockHeader
+    -> [TxPending]
+    -> [(TxIn, Maybe TxOut)]
+    -> [TxOut]
+    -> [W.TransactionInfo]
+txHistoryFromPendingEntity sp tip pendings ins outs =
+    map mkItem pendings
+  where
+    mkItem m = mkTxWith (txMetaTxId m) (mkTxMeta m)
+    mkTxWith txid meta = W.TransactionInfo
+        { W.txInfoId =
+            getTxId txid
+        , W.txInfoInputs =
+            map mkTxIn $ filter ((== txid) . txInputTxId . fst) ins
+        , W.txInfoOutputs =
+            map mkTxOut $ filter ((== txid) . txOutputTxId) outs
+        , W.txInfoWithdrawals =
+            Map.fromList $ map mkTxWithdrawal $ filter ((== txid) . txWithdrawalTxId) ws
+        , W.txInfoMeta =
+            meta
+        , W.txInfoDepth =
+            Quantity $ fromIntegral $ if tipH > txH then tipH - txH else 0
+        , W.txInfoTime =
+            W.slotStartTime sp (meta ^. #slotId)
+        }
+      where
+        txH  = getQuantity (meta ^. #blockHeight)
+        tipH = getQuantity (tip ^. #blockHeight)
+    mkTxIn (tx, out) =
+        ( W.TxIn
+            { W.inputId = getTxId (txInputSourceTxId tx)
+            , W.inputIx = txInputSourceIndex tx
+            }
+        , txInputSourceAmount tx
+        , mkTxOut <$> out
+        )
+    mkTxOut tx = W.TxOut
+        { W.address = txOutputAddress tx
+        , W.coin = txOutputAmount tx
+        }
+    mkTxWithdrawal w =
+        ( txWithdrawalAccount w
+        , txWithdrawalAmount w
+        )
+    mkTxMeta m = W.TxMeta
+        { W.status = txMetaStatus m
+        , W.direction = txMetaDirection m
+        , W.slotId = txMetaSlot m
+        , W.blockHeight = Quantity (txMetaBlockHeight m)
+        , W.amount = Quantity (txMetaAmount m)
+        }
+
 mkProtocolParametersEntity
     :: W.WalletId
     -> W.ProtocolParameters
@@ -1329,6 +1390,34 @@ selectTxHistory wid minWithdrawal order conditions = do
     sortOpt = case order of
         W.Ascending -> [Asc TxMetaSlot, Desc TxMetaTxId]
         W.Descending -> [Desc TxMetaSlot, Asc TxMetaTxId]
+
+selectTxPending
+    :: W.WalletId
+    -> W.SortOrder
+    -> [Filter TxPending]
+    -> SqlPersistT IO [W.TransactionInfo]
+selectTxPending wid order conditions = do
+    selectLatestCheckpoint wid >>= \case
+        Nothing -> pure []
+        Just cp -> do
+            pendings <- fmap entityVal <$> selectList
+                ((TxPendingWalletId ==. wid):conditions)
+                sortOpt
+
+            let txids = map txPendingTxId pendings
+            (ins, outs, _) <- selectTxs txids
+
+            let wal = checkpointFromEntity cp [] ()
+            let tip = W.currentTip wal
+            let slp = W.slotParams $ W.blockchainParameters wal
+
+            return $ txHistoryFromEntity slp tip pendings ins outs
+  where
+    -- Note: The secondary sort by TxId is to make the ordering stable
+    -- so that testing with random data always works.
+    sortOpt = case order of
+        W.Ascending -> [Asc TxPendingSlotCreated, Desc TxPendingTxId]
+        W.Descending -> [Desc TxPendingSlotCreated, Asc TxPendingTxId]
 
 selectPendingTxs
     :: W.WalletId
