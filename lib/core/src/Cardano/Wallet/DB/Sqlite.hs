@@ -603,17 +603,14 @@ newDBLayer trace defaultFieldValues mDatabaseFile = do
                     deleteDelegationCertificates wid
                         [ CertSlot >. nearestPoint
                         ]
-                    -- fixme: transfer outgoing TxMeta back to TxPending
-                    updateTxMetas wid
-                        [ TxMetaDirection ==. W.Outgoing
-                        , TxMetaSlot >. nearestPoint
-                        ]
-                        [ TxMetaStatus =. W.Pending
-                        , TxMetaSlot =. nearestPoint
-                        ]
                     deleteTxMetas wid
-                        [ TxMetaDirection ==. W.Incoming
-                        , TxMetaSlot >. nearestPoint
+                        [ TxMetaSlot >. nearestPoint
+                        ]
+                    updateWhere
+                        [ TxPendingWalletId ==. wid
+                        , TxPendingAccepted >. Just nearestPoint
+                        ]
+                        [ TxPendingAccepted =. Nothing
                         ]
                     deleteStakeKeyCerts wid
                         [ StakeKeyCertSlot >. nearestPoint
@@ -1172,14 +1169,6 @@ deleteStakeKeyCerts
     -> SqlPersistT IO ()
 deleteStakeKeyCerts wid filters =
     deleteWhere ((StakeKeyCertWalletId ==. wid) : filters)
-
-updateTxMetas
-    :: W.WalletId
-    -> [Filter TxMeta]
-    -> [Update TxMeta]
-    -> SqlPersistT IO ()
-updateTxMetas wid filters =
-    updateWhere ((TxMetaWalletId ==. wid) : filters)
 
 -- | Add new TxMeta rows, overwriting existing ones.
 putTxMetas :: [TxMeta] -> SqlPersistT IO ()

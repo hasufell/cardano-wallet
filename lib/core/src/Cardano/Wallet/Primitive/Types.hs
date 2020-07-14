@@ -939,7 +939,7 @@ instance Ord PendingTx where
 instance NFData PendingTx
 
 instance Buildable PendingTx where
-    build (PendingTx tx exp) = build tx <> " (expires: " <> build exp <> ")"
+    build (PendingTx tx ex) = build tx <> " (expires: " <> build ex <> ")"
 
 -- | An unsigned transaction.
 --
