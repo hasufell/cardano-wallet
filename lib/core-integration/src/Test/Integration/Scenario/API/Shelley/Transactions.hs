@@ -136,7 +136,7 @@ spec = do
                 , nChanges = 1
                 }
 
-        let amt = 1000
+        let amt = 1_000_000 :: Natural
         r <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, fixturePassphrase)
             wSrc
@@ -171,7 +171,7 @@ spec = do
 
         eventually "Pending tx has pendingSince field" $ do
             -- Post Tx
-            let amt = (1 :: Natural)
+            let amt = (1_000_000 :: Natural)
             r <- postTx ctx
                 (wSrc, Link.createTransaction @'Shelley,"Secure Passphrase")
                 wDest
@@ -204,7 +204,7 @@ spec = do
                 , nOutputs = 1
                 , nChanges = 1
                 }
-        let amt = (1 :: Natural)
+        let amt = (1_000_000 :: Natural)
         r <- postTx ctx
             (wa, Link.createTransaction @'Shelley, "cardano-wallet")
             wb
@@ -249,7 +249,7 @@ spec = do
         wDest <- emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         let destination1 = (addrs !! 1) ^. #id
         let destination2 = (addrs !! 2) ^. #id
         let payload = Json [json|{
@@ -309,7 +309,7 @@ spec = do
 
     it "TRANS_CREATE_03 - 0 balance after transaction" $ \ctx -> do
         let (feeMin, _) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 0
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         wSrc <- fixtureWalletWith @n ctx [feeMin+amt]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
@@ -360,7 +360,7 @@ spec = do
 
     it "TRANS_CREATE_04 - Can't cover fee" $ \ctx -> do
         let (feeMin, _) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 1
-        wSrc <- fixtureWalletWith @n ctx [feeMin `div` 2]
+        wSrc <- fixtureWalletWith @n ctx [1_000_000 + (feeMin `div` 2)]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -369,7 +369,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1,
+                        "quantity": 1000000,
                         "unit": "lovelace"
                     }
                 }],
@@ -383,7 +383,7 @@ spec = do
             ]
 
     it "TRANS_CREATE_04 - Not enough money" $ \ctx -> do
-        wSrc <- fixtureWalletWith @n ctx [1]
+        wSrc <- fixtureWalletWith @n ctx [1_000_000]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -392,7 +392,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": 2000000,
                         "unit": "lovelace"
                     }
                 }],
@@ -403,7 +403,7 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status403
             , expectErrorMessage $
-                errMsg403NotEnoughMoney 1 1_000_000
+                errMsg403NotEnoughMoney 1_000_000 2_000_000
             ]
 
     it "TRANS_CREATE_04 - Wrong password" $ \ctx -> do
@@ -416,7 +416,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1,
+                        "quantity": 1000000,
                         "unit": "lovelace"
                     }
                 }],
@@ -439,7 +439,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1,
+                        "quantity": 1000000,
                         "unit": "lovelace"
                     }
                 }],
@@ -479,7 +479,7 @@ spec = do
         (wByron, wShelley) <- (,) <$> srcFixture ctx <*> fixtureWallet ctx
         addrs <- listAddresses @n ctx wShelley
 
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -565,7 +565,7 @@ spec = do
         (wa, wb) <- (,) <$> fixtureWallet ctx <*> fixtureWallet ctx
         addrs <- listAddresses @n ctx wb
 
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -588,7 +588,7 @@ spec = do
             [ expectSuccess
             , expectResponseCode HTTP.status202
             , expectField (#estimatedMin . #getQuantity) $
-                between (feeMin - amt, feeMax + amt)
+                between (feeMin - 1, feeMax + 1)
             ]
 
     it "TRANS_ESTIMATE_02 - Multiple Output Fee Estimation to single wallet" $ \ctx -> do
@@ -596,7 +596,7 @@ spec = do
         wDest <- emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         let destination1 = (addrs !! 1) ^. #id
         let destination2 = (addrs !! 2) ^. #id
         let payload = Json [json|{
@@ -626,7 +626,7 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status202
             , expectField (#estimatedMin . #getQuantity) $
-                between (feeMin - (2*amt), feeMax + (2*amt))
+                between (feeMin, feeMax)
             ]
 
     it "TRANS_ESTIMATE_02 - Multiple Output Fee Estimation to different wallets" $ \ctx -> do
@@ -636,7 +636,7 @@ spec = do
         addrs1 <- listAddresses @n ctx wDest1
         addrs2 <- listAddresses @n ctx wDest2
 
-        let amt = 1
+        let amt = 1_000_000 :: Natural
         let destination1 = (addrs1 !! 1) ^. #id
         let destination2 = (addrs2 !! 1) ^. #id
         let payload = Json [json|{
@@ -668,15 +668,15 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status202
             , expectField (#estimatedMin . #getQuantity) $
-                between (feeMin - (2*amt), feeMax + (2*amt))
+                between (feeMin, feeMax)
             ]
 
     it "TRANS_ESTIMATE_03 - we see result when we can't cover fee" $ \ctx -> do
         let (feeMin, feeMax) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 0
-        wSrc <- fixtureWalletWith @n ctx [feeMin `div` 2]
+        wSrc <- fixtureWalletWith @n ctx [1_000_000 + (feeMin `div` 2)]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
-        let amt = 1 :: Natural
+        let amt = 1_000_000 :: Natural
 
         let destination = addr ^. #id
         let payload = Json [json|{
@@ -693,11 +693,11 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status202
             , expectField (#estimatedMin . #getQuantity) $
-                between (feeMin - amt, feeMax + amt)
+                between (feeMin, feeMax)
             ]
 
     it "TRANS_ESTIMATE_04 - Not enough money" $ \ctx -> do
-        wSrc <- fixtureWalletWith @n ctx [1]
+        wSrc <- fixtureWalletWith @n ctx [1_000_000]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -706,7 +706,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": 2000000,
                         "unit": "lovelace"
                     }
                 }]
@@ -716,7 +716,7 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status403
             , expectErrorMessage $
-                errMsg403NotEnoughMoney 1 1_000_000
+                errMsg403NotEnoughMoney 1_000_000 2_000_000
             ]
 
     it "TRANS_ESTIMATE_07 - Deleted wallet" $ \ctx -> do
@@ -729,7 +729,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1,
+                        "quantity": 1000000,
                         "unit": "lovelace"
                     }
                 }]
@@ -744,7 +744,7 @@ spec = do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1 :: Natural
+        let amt = 1_000_000 :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -806,11 +806,11 @@ spec = do
     -- +---+----------+----------+------------+--------------+
     it "TRANS_LIST_02,03x - Can limit/order results with start, end and order"
         $ \ctx -> do
-        let a1 = Quantity $ sum $ replicate 10 1
-        let a2 = Quantity $ sum $ replicate 10 2
+        let a1 = Quantity $ sum $ replicate 10 1_000_000
+        let a2 = Quantity $ sum $ replicate 10 2_000_000
         w <- fixtureWalletWith @n ctx $ mconcat
-                [ replicate 10 1
-                , replicate 10 2
+                [ replicate 10 1_000_000
+                , replicate 10 2_000_000
                 ]
         txs <- listAllTransactions @n ctx w
         let [Just t2, Just t1] = fmap (fmap time . insertedAt) txs
@@ -1133,7 +1133,7 @@ spec = do
     it "TRANS_LIST_RANGE_01 - \
        \Transaction at time t is SELECTED by small ranges that cover it" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1]
+              w <- fixtureWalletWith @n ctx [1_000_000]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let (te, tl) = (utcTimePred t, utcTimeSucc t)
               txs1 <- listTransactions @n ctx w (Just t ) (Just t ) Nothing
@@ -1145,7 +1145,7 @@ spec = do
     it "TRANS_LIST_RANGE_02 - \
        \Transaction at time t is NOT selected by range (t + 𝛿t, ...)" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1]
+              w <- fixtureWalletWith @n ctx [1_000_000]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let tl = utcTimeSucc t
               txs1 <- listTransactions @n ctx w (Just tl) (Nothing) Nothing
@@ -1155,7 +1155,7 @@ spec = do
     it "TRANS_LIST_RANGE_03 - \
        \Transaction at time t is NOT selected by range (..., t - 𝛿t)" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1]
+              w <- fixtureWalletWith @n ctx [1_000_000]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let te = utcTimePred t
               txs1 <- listTransactions @n ctx w (Nothing) (Just te) Nothing
@@ -1165,7 +1165,7 @@ spec = do
     it "TRANS_GET_01 - Can get Incoming and Outgoing transaction" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1 :: Natural)
+        let amt = (1_000_000 :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1219,7 +1219,7 @@ spec = do
     it "TRANS_GET_03 - Using wrong transaction id" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1 :: Natural)
+        let amt = (1_000_000 :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1242,7 +1242,7 @@ spec = do
         \ Shelley: Can forget pending transaction" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1 :: Natural)
+        let amt = (1_000_000 :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1328,7 +1328,7 @@ spec = do
             postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
-            (1 :: Natural)
+            (1_000_000 :: Natural)
         let txid = getFromResponse #id rTx
 
         eventually "Transaction is accepted" $ do
@@ -1394,7 +1394,7 @@ spec = do
                     "payments": [{
                         "address": #{destination},
                         "amount": {
-                            "quantity": 1,
+                            "quantity": 1000000,
                             "unit": "lovelace"
                         }
                     }]
@@ -1415,7 +1415,7 @@ spec = do
                     "payments": [{
                         "address": #{destination},
                         "amount": {
-                            "quantity": 1,
+                            "quantity": 1000000,
                             "unit": "lovelace"
                         }
                     }],
@@ -1470,7 +1470,7 @@ spec = do
             rMkTx <- postTx ctx
                 (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
                 wDest
-                (1 :: Natural)
+                (1_000_000 :: Natural)
 
             -- try to forget from different wallet
             wDifferent <- eWallet ctx
