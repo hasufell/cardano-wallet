@@ -913,9 +913,9 @@ prepareKeyRegistration tr dir = do
     void $ cli tr
         [ "shelley", "transaction", "build-raw"
         , "--tx-in", faucetInput
-        , "--tx-out", init addr <> "+" <> "1"
+        , "--tx-out", init addr <> "+" <> "1000000"
         , "--ttl", "100"
-        , "--fee", show (faucetAmt - depositAmt - 1)
+        , "--fee", show (faucetAmt - depositAmt - 1000000)
         , "--certificate-file", cert
         , "--out-file", file
         ]
