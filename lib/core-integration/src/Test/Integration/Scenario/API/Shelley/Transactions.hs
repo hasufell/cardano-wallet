@@ -87,6 +87,7 @@ import Test.Integration.Framework.DSL
     , listAddresses
     , listAllTransactions
     , listTransactions
+    , minUTxOValue
     , request
     , toQueryString
     , unsafeRequest
@@ -136,7 +137,7 @@ spec = do
                 , nChanges = 1
                 }
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         r <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, fixturePassphrase)
             wSrc
@@ -171,7 +172,7 @@ spec = do
 
         eventually "Pending tx has pendingSince field" $ do
             -- Post Tx
-            let amt = (1_000_000 :: Natural)
+            let amt = (minUTxOValue :: Natural)
             r <- postTx ctx
                 (wSrc, Link.createTransaction @'Shelley,"Secure Passphrase")
                 wDest
@@ -204,7 +205,7 @@ spec = do
                 , nOutputs = 1
                 , nChanges = 1
                 }
-        let amt = (1_000_000 :: Natural)
+        let amt = (minUTxOValue :: Natural)
         r <- postTx ctx
             (wa, Link.createTransaction @'Shelley, "cardano-wallet")
             wb
@@ -249,7 +250,7 @@ spec = do
         wDest <- emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination1 = (addrs !! 1) ^. #id
         let destination2 = (addrs !! 2) ^. #id
         let payload = Json [json|{
@@ -309,7 +310,7 @@ spec = do
 
     it "TRANS_CREATE_03 - 0 balance after transaction" $ \ctx -> do
         let (feeMin, _) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 0
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         wSrc <- fixtureWalletWith @n ctx [feeMin+amt]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
@@ -360,7 +361,7 @@ spec = do
 
     it "TRANS_CREATE_04 - Can't cover fee" $ \ctx -> do
         let (feeMin, _) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 1
-        wSrc <- fixtureWalletWith @n ctx [1_000_000 + (feeMin `div` 2)]
+        wSrc <- fixtureWalletWith @n ctx [minUTxOValue + (feeMin `div` 2)]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -369,7 +370,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": #{minUTxOValue},
                         "unit": "lovelace"
                     }
                 }],
@@ -383,7 +384,8 @@ spec = do
             ]
 
     it "TRANS_CREATE_04 - Not enough money" $ \ctx -> do
-        wSrc <- fixtureWalletWith @n ctx [1_000_000]
+        wSrc <- fixtureWalletWith @n ctx [minUTxOValue]
+        let amt = 2 * minUTxOValue
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -392,7 +394,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 2000000,
+                        "quantity": #{amt},
                         "unit": "lovelace"
                     }
                 }],
@@ -403,7 +405,7 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status403
             , expectErrorMessage $
-                errMsg403NotEnoughMoney 1_000_000 2_000_000
+                errMsg403NotEnoughMoney (fromIntegral minUTxOValue) (2 * (fromIntegral minUTxOValue))
             ]
 
     it "TRANS_CREATE_04 - Wrong password" $ \ctx -> do
@@ -416,7 +418,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": #{minUTxOValue},
                         "unit": "lovelace"
                     }
                 }],
@@ -439,7 +441,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": #{minUTxOValue},
                         "unit": "lovelace"
                     }
                 }],
@@ -479,7 +481,7 @@ spec = do
         (wByron, wShelley) <- (,) <$> srcFixture ctx <*> fixtureWallet ctx
         addrs <- listAddresses @n ctx wShelley
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -565,7 +567,7 @@ spec = do
         (wa, wb) <- (,) <$> fixtureWallet ctx <*> fixtureWallet ctx
         addrs <- listAddresses @n ctx wb
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -596,7 +598,7 @@ spec = do
         wDest <- emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination1 = (addrs !! 1) ^. #id
         let destination2 = (addrs !! 2) ^. #id
         let payload = Json [json|{
@@ -636,7 +638,7 @@ spec = do
         addrs1 <- listAddresses @n ctx wDest1
         addrs2 <- listAddresses @n ctx wDest2
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination1 = (addrs1 !! 1) ^. #id
         let destination2 = (addrs2 !! 1) ^. #id
         let payload = Json [json|{
@@ -673,10 +675,10 @@ spec = do
 
     it "TRANS_ESTIMATE_03 - we see result when we can't cover fee" $ \ctx -> do
         let (feeMin, feeMax) = ctx ^. #_feeEstimator $ PaymentDescription 1 1 0
-        wSrc <- fixtureWalletWith @n ctx [1_000_000 + (feeMin `div` 2)]
+        wSrc <- fixtureWalletWith @n ctx [minUTxOValue + (feeMin `div` 2)]
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
 
         let destination = addr ^. #id
         let payload = Json [json|{
@@ -697,7 +699,8 @@ spec = do
             ]
 
     it "TRANS_ESTIMATE_04 - Not enough money" $ \ctx -> do
-        wSrc <- fixtureWalletWith @n ctx [1_000_000]
+        wSrc <- fixtureWalletWith @n ctx [minUTxOValue]
+        let amt = 2 * minUTxOValue
         wDest <- emptyWallet ctx
         addr:_ <- listAddresses @n ctx wDest
 
@@ -706,7 +709,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 2000000,
+                        "quantity": #{amt},
                         "unit": "lovelace"
                     }
                 }]
@@ -716,7 +719,7 @@ spec = do
         verify r
             [ expectResponseCode HTTP.status403
             , expectErrorMessage $
-                errMsg403NotEnoughMoney 1_000_000 2_000_000
+                errMsg403NotEnoughMoney (fromIntegral minUTxOValue) (2 * (fromIntegral minUTxOValue))
             ]
 
     it "TRANS_ESTIMATE_07 - Deleted wallet" $ \ctx -> do
@@ -729,7 +732,7 @@ spec = do
                 "payments": [{
                     "address": #{destination},
                     "amount": {
-                        "quantity": 1000000,
+                        "quantity": #{minUTxOValue},
                         "unit": "lovelace"
                     }
                 }]
@@ -744,7 +747,7 @@ spec = do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         addrs <- listAddresses @n ctx wDest
 
-        let amt = 1_000_000 :: Natural
+        let amt = minUTxOValue :: Natural
         let destination = (addrs !! 1) ^. #id
         let payload = Json [json|{
                 "payments": [{
@@ -806,11 +809,11 @@ spec = do
     -- +---+----------+----------+------------+--------------+
     it "TRANS_LIST_02,03x - Can limit/order results with start, end and order"
         $ \ctx -> do
-        let a1 = Quantity $ sum $ replicate 10 1_000_000
-        let a2 = Quantity $ sum $ replicate 10 2_000_000
+        let a1 = Quantity $ sum $ replicate 10 minUTxOValue
+        let a2 = Quantity $ sum $ replicate 10 (2 * minUTxOValue)
         w <- fixtureWalletWith @n ctx $ mconcat
-                [ replicate 10 1_000_000
-                , replicate 10 2_000_000
+                [ replicate 10 minUTxOValue
+                , replicate 10 (2 * minUTxOValue)
                 ]
         txs <- listAllTransactions @n ctx w
         let [Just t2, Just t1] = fmap (fmap time . insertedAt) txs
@@ -1133,7 +1136,7 @@ spec = do
     it "TRANS_LIST_RANGE_01 - \
        \Transaction at time t is SELECTED by small ranges that cover it" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1_000_000]
+              w <- fixtureWalletWith @n ctx [minUTxOValue]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let (te, tl) = (utcTimePred t, utcTimeSucc t)
               txs1 <- listTransactions @n ctx w (Just t ) (Just t ) Nothing
@@ -1145,7 +1148,7 @@ spec = do
     it "TRANS_LIST_RANGE_02 - \
        \Transaction at time t is NOT selected by range (t + 𝛿t, ...)" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1_000_000]
+              w <- fixtureWalletWith @n ctx [minUTxOValue]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let tl = utcTimeSucc t
               txs1 <- listTransactions @n ctx w (Just tl) (Nothing) Nothing
@@ -1155,7 +1158,7 @@ spec = do
     it "TRANS_LIST_RANGE_03 - \
        \Transaction at time t is NOT selected by range (..., t - 𝛿t)" $
           \ctx -> do
-              w <- fixtureWalletWith @n ctx [1_000_000]
+              w <- fixtureWalletWith @n ctx [minUTxOValue]
               t <- unsafeGetTransactionTime <$> listAllTransactions ctx w
               let te = utcTimePred t
               txs1 <- listTransactions @n ctx w (Nothing) (Just te) Nothing
@@ -1165,7 +1168,7 @@ spec = do
     it "TRANS_GET_01 - Can get Incoming and Outgoing transaction" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1_000_000 :: Natural)
+        let amt = (minUTxOValue :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1219,7 +1222,7 @@ spec = do
     it "TRANS_GET_03 - Using wrong transaction id" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1_000_000 :: Natural)
+        let amt = (minUTxOValue :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1242,7 +1245,7 @@ spec = do
         \ Shelley: Can forget pending transaction" $ \ctx -> do
         (wSrc, wDest) <- (,) <$> fixtureWallet ctx <*> emptyWallet ctx
         -- post tx
-        let amt = (1_000_000 :: Natural)
+        let amt = (minUTxOValue :: Natural)
         rMkTx <- postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
@@ -1328,7 +1331,7 @@ spec = do
             postTx ctx
             (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
             wDest
-            (1_000_000 :: Natural)
+            (minUTxOValue :: Natural)
         let txid = getFromResponse #id rTx
 
         eventually "Transaction is accepted" $ do
@@ -1394,7 +1397,7 @@ spec = do
                     "payments": [{
                         "address": #{destination},
                         "amount": {
-                            "quantity": 1000000,
+                            "quantity": #{minUTxOValue},
                             "unit": "lovelace"
                         }
                     }]
@@ -1415,7 +1418,7 @@ spec = do
                     "payments": [{
                         "address": #{destination},
                         "amount": {
-                            "quantity": 1000000,
+                            "quantity": #{minUTxOValue},
                             "unit": "lovelace"
                         }
                     }],
@@ -1470,7 +1473,7 @@ spec = do
             rMkTx <- postTx ctx
                 (wSrc, Link.createTransaction @'Shelley, "cardano-wallet")
                 wDest
-                (1_000_000 :: Natural)
+                (minUTxOValue :: Natural)
 
             -- try to forget from different wallet
             wDifferent <- eWallet ctx
