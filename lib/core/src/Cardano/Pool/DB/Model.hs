@@ -35,6 +35,9 @@ module Cardano.Pool.DB.Model
     -- * Model pool database functions
     , mCleanDatabase
     , mPutPoolProduction
+    , mPutHeader
+    , mListHeaders
+    , mDropHeaders
     , mReadPoolProduction
     , mReadTotalProduction
     , mPutStakeDistribution
@@ -145,6 +148,9 @@ data PoolDatabase = PoolDatabase
 
     , seed :: !SystemSeed
     -- ^ Store an arbitrary random generator seed
+
+    , blockHeaders :: [BlockHeader]
+    -- ^ Store headers during syncing
     } deriving (Generic, Show, Eq)
 
 data SystemSeed
@@ -162,6 +168,7 @@ instance Eq SystemSeed where
 emptyPoolDatabase :: PoolDatabase
 emptyPoolDatabase =
     PoolDatabase mempty mempty mempty mempty mempty mempty mempty NotSeededYet
+        mempty
 
 {-------------------------------------------------------------------------------
                                   Model Operation Types
@@ -395,6 +402,15 @@ mRemoveRetiredPools epoch = do
     certificates <- mListRetiredPools epoch
     mRemovePools (view #poolId <$> certificates)
     pure certificates
+
+mPutHeader :: BlockHeader -> ModelOp ()
+mPutHeader header = modify #blockHeaders (header :)
+
+mListHeaders :: Int -> ModelOp [BlockHeader]
+mListHeaders k = take k <$> get #blockHeaders
+
+mDropHeaders :: ModelOp ()
+mDropHeaders = modify #blockHeaders (const [])
 
 --------------------------------------------------------------------------------
 -- Utilities

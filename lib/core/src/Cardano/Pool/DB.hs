@@ -223,6 +223,19 @@ data DBLayer m = forall stm. (MonadFail stm, MonadIO stm) => DBLayer
         --    - 'listRetiredPools'.
         --    - 'removePools'.
 
+    , putHeader
+        :: BlockHeader
+        -> stm ()
+        -- ^ Add a block header
+
+    , listHeaders
+        :: Int -- ^ limit
+        -> stm [BlockHeader]
+        -- ^ List headers, usually stored during syncing
+
+    , dropHeaders
+        :: stm ()
+
     , cleanDB
         :: stm ()
         -- ^ Clean a database

@@ -41,6 +41,8 @@ import Cardano.Wallet
     ( ErrListPools (..) )
 import Cardano.Wallet.Api.Types
     ( ApiT (..) )
+import Cardano.Wallet.Byron.Compatibility
+    ( toByronBlockHeader )
 import Cardano.Wallet.Network
     ( ErrCurrentNodeTip (..)
     , ErrNetworkUnavailable (..)
@@ -146,6 +148,7 @@ import System.Random
 
 import qualified Cardano.Wallet.Api.Types as Api
 import qualified Data.List as L
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -496,22 +499,9 @@ monitorStakePools tr gp nl db@DBLayer{..} = do
 
     initCursor :: IO [BlockHeader]
     initCursor = do
-        fromDB <- atomically $ readPoolProductionCursor (max 100 k)
+        fromDB <- atomically $ listHeaders (max 100 k)
         pure (lastByronBlock:fromDB)
       where k = fromIntegral $ getQuantity getEpochStability
-            -- We only have stake pools since shelley era.
-            -- This is hardcoded for mainnet and will do nothing for other
-            -- networks.
-            -- TODO: query cardano-node for hard fork block (not yet possible)
-            --       https://jira.iohk.io/browse/CAD-1850
-            lastByronBlock :: BlockHeader
-            lastByronBlock = BlockHeader
-                (SlotNo 4492799)
-                (Quantity 4490510)
-                (Hash $ unsafeFromHex
-                    "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457")
-                (Hash $ unsafeFromHex
-                    "aa83acbf5904c0edfe4d79b3689d3d00fcfc553cf360fd2229b98d464c28e9de")
 
     getHeader :: CardanoBlock sc -> BlockHeader
     getHeader = toCardanoBlockHeader gp
@@ -521,25 +511,49 @@ monitorStakePools tr gp nl db@DBLayer{..} = do
         -> NonEmpty (CardanoBlock sc)
         -> (BlockHeader, ProtocolParameters)
         -> IO (FollowAction ())
-    forward latestGarbageCollectionEpochRef blocks (_nodeTip, _pparams) = do
-        atomically $ forM_ blocks $ \case
+    forward latestGarbageCollectionEpochRef blocks _ = do
+        atomically $ forML_ blocks forAllBlocks forLastBlock
+        pure Continue
+      where
+        forAllBlocks = \case
             BlockByron _ -> pure ()
             BlockShelley blk -> do
                 let (slot, certificates) = poolCertsFromShelleyBlock blk
                 let header = toShelleyBlockHeader getGenesisBlockHash blk
-                runExceptT (putPoolProduction header (getProducer blk))
-                    >>= \case
-                        Left e ->
-                            liftIO $ traceWith tr $ MsgErrProduction e
-                        Right () ->
-                            pure ()
+                handleErr (putPoolProduction header (getProducer blk))
                 unless (null certificates) $ do
                     -- Before adding new pool certificates to the database, we
                     -- first attempt to garbage collect pools that have already
                     -- retired.
                     garbageCollectPools slot latestGarbageCollectionEpochRef
                     putPoolCertificates slot certificates
-        pure Continue
+
+        forLastBlock = \case
+            BlockByron blk ->
+                putHeader (toByronBlockHeader gp blk)
+            BlockShelley blk ->
+                putHeader (toShelleyBlockHeader getGenesisBlockHash blk)
+
+        handleErr action = runExceptT action
+            >>= \case
+                Left e ->
+                    liftIO $ traceWith tr $ MsgErrProduction e
+                Right () ->
+                    pure ()
+
+        -- | Like 'forM_', except runs the second action for the last element as
+        -- well (in addition to the first action).
+        forML_ :: (Monad m)
+            => NonEmpty a
+            -> (a -> m b) -- ^ action to run for all elements
+            -> (a -> m c) -- ^ action to run for the last element
+            -> m ()
+        {-# INLINE forML_ #-}
+        forML_ ne a1 a2 = go (NE.toList ne)
+          where
+            go []  = pure ()
+            go [x] = a1 x >> a2 x >> go []
+            go (x:xs) = a1 x >> go xs
 
     -- Perform garbage collection for pools that have retired.
     --
@@ -718,3 +732,22 @@ instance ToText StakePoolLog where
             , "back to it in about "
             , pretty (fixedF 1 (toRational delay / 1000000)), "s"
             ]
+
+
+-- | The very last block header of the Byron era, just before the transition
+--   to Shelley.
+--
+-- This is hard-coded for mainnet and will do nothing for other networks.
+--
+-- TODO: query cardano-node for hard fork block (not yet possible).
+-- https://jira.iohk.io/browse/CAD-1850
+--
+lastByronBlock :: BlockHeader
+lastByronBlock = BlockHeader
+    (SlotNo 4492799)
+    (Quantity 4490510)
+    (Hash $ unsafeFromHex
+        "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457")
+    (Hash $ unsafeFromHex
+        "aa83acbf5904c0edfe4d79b3689d3d00fcfc553cf360fd2229b98d464c28e9de")
+

@@ -25,10 +25,13 @@ import Cardano.Pool.DB.Model
     , PoolErr (..)
     , emptyPoolDatabase
     , mCleanDatabase
+    , mDropHeaders
+    , mListHeaders
     , mListPoolLifeCycleData
     , mListRegisteredPools
     , mListRetiredPools
     , mPutFetchAttempt
+    , mPutHeader
     , mPutPoolMetadata
     , mPutPoolProduction
     , mPutPoolRegistration
@@ -145,6 +148,15 @@ newDBLayer timeInterpreter = do
             fmap (fromRight [])
                 . alterPoolDB (const Nothing) db
                 . mRemoveRetiredPools
+
+        putHeader point =
+            void . alterPoolDB (const Nothing) db . mPutHeader $ point
+
+        listHeaders =
+            readPoolDB db . mListHeaders
+
+        dropHeaders =
+            void . alterPoolDB (const Nothing) db $ mDropHeaders
 
         cleanDB =
             void $ alterPoolDB (const Nothing) db mCleanDatabase
