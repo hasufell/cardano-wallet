@@ -87,6 +87,8 @@ import Cardano.Wallet.Primitive.Types
     ( AddressState, Coin (..), SortOrder, WalletId )
 import Control.Monad
     ( void )
+import Control.Monad.Catch
+    ( throwM )
 import Data.Coerce
     ( coerce )
 import Data.Generics.Internal.VL.Lens
@@ -315,9 +317,9 @@ addressClient =
     in
         AddressClient
             { listAddresses = _listAddresses
-            , postRandomAddress = \_ _ -> fail "feature unavailable."
-            , putRandomAddress  = \_ _ -> fail "feature unavailable."
-            , putRandomAddresses = \_ _ -> fail "feature unavailable."
+            , postRandomAddress = \_ _ -> throwM $ userError "feature unavailable."
+            , putRandomAddress  = \_ _ -> throwM $ userError "feature unavailable."
+            , putRandomAddresses = \_ _ -> throwM $ userError "feature unavailable."
             }
 
 

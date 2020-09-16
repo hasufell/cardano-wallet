@@ -19,10 +19,12 @@ import Cardano.BM.Trace
     ( traceInTVarIO )
 import Control.Concurrent.STM.TVar
     ( newTVarIO, readTVarIO )
+import Control.Lens
+    ( (^?) )
 import Control.Tracer
     ( Tracer )
 import Data.Generics.Internal.VL.Prism
-    ( Prism', (^?) )
+    ( Prism' )
 import Data.Maybe
     ( isJust )
 

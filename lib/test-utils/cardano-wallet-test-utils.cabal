@@ -42,6 +42,7 @@ library
     , hspec-golden-aeson
     , http-api-data
     , iohk-monitoring
+    , lens
     , process
     , QuickCheck
     , stm

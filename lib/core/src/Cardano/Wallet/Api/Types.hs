@@ -130,7 +130,12 @@ import Prelude
 import Cardano.Address.Derivation
     ( XPrv, XPub, xpubToBytes )
 import Cardano.Api.MetaData
-    ( jsonFromMetadata, jsonToMetadata, renderMetaDataJsonConversionError )
+    ( TxMetadataJsonSchema (..)
+    , metadataFromJson
+    , metadataToJson
+    )
+import Cardano.Api.Typed
+    ( Error (..) )
 import Cardano.Mnemonic
     ( MkSomeMnemonic (..)
     , MkSomeMnemonicError (..)
@@ -1253,12 +1258,12 @@ instance
     toJSON = genericToJSON defaultRecordTypeOptions
 
 instance FromJSON (ApiT TxMetadata) where
-    parseJSON = fmap ApiT . either (fail . prettyError) pure . jsonToMetadata
+    parseJSON = fmap ApiT . either (fail . prettyError) pure . metadataFromJson TxMetadataJsonNoSchema
       where
-        prettyError = T.unpack . renderMetaDataJsonConversionError
+        prettyError = displayError
 
 instance ToJSON (ApiT TxMetadata) where
-    toJSON = jsonFromMetadata . getApiT
+    toJSON = metadataToJson TxMetadataJsonNoSchema . getApiT
 
 instance FromJSON ApiTxMetadata where
     parseJSON Aeson.Null = pure $ ApiTxMetadata Nothing
@@ -1466,7 +1471,7 @@ instance FromText (AddressAmount Text) where
 instance FromText PostExternalTransactionData where
     fromText text = case convertFromBase Base16 (T.encodeUtf8 text) of
         Left _ ->
-            fail "Parse error. Expecting hex-encoded format."
+            Left $ TextDecodingError "Parse error. Expecting hex-encoded format."
         Right load ->
             pure $ PostExternalTransactionData load
 

@@ -21,7 +21,7 @@ module Cardano.Wallet.DB.Sqlite.Types where
 import Prelude
 
 import Cardano.Api.MetaData
-    ( jsonFromMetadata, jsonToMetadata )
+    ( TxMetadataJsonSchema (..), metadataFromJson, metadataToJson )
 import Cardano.Slotting.Slot
     ( SlotNo (..) )
 import Cardano.Wallet.Primitive.AddressDerivation
@@ -351,9 +351,9 @@ instance PersistField TxMetadata where
         decodeUtf8 .
         BL.toStrict .
         Aeson.encode .
-        jsonFromMetadata
+        metadataToJson TxMetadataJsonNoSchema
     fromPersistValue =
-        (left (T.pack . show) . jsonToMetadata) <=<
+        (left (T.pack . show) . metadataFromJson TxMetadataJsonNoSchema) <=<
         (left T.pack . Aeson.eitherDecode . BL.fromStrict . encodeUtf8) <=<
         fromPersistValue
 
