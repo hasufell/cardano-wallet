@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -45,8 +44,6 @@ import Cardano.BM.Data.Severity
     ( Severity (..) )
 import Cardano.BM.Data.Tracer
     ( HasPrivacyAnnotation (..), HasSeverityAnnotation (..) )
-import Cardano.Ledger.Crypto
-    ( Crypto (..) )
 import Cardano.Wallet.Byron.Compatibility
     ( byronCodecConfig, protocolParametersFromUpdateState )
 import Cardano.Wallet.Logging
@@ -63,7 +60,7 @@ import Cardano.Wallet.Primitive.Slotting
     ( TimeInterpreter, mkTimeInterpreter )
 import Cardano.Wallet.Shelley.Compatibility
     ( Shelley
-    , StandardShelley
+    , TPraosStandardCrypto
     , fromCardanoHash
     , fromChainHash
     , fromNonMyopicMemberRewards
@@ -171,7 +168,6 @@ import Ouroboros.Consensus.Cardano.Block
     , CodecConfig (..)
     , GenTx (..)
     , Query (..)
-    , ShelleyEra
     )
 import Ouroboros.Consensus.HardFork.Combinator
     ( QueryAnytime (..), QueryHardFork (..) )
@@ -185,12 +181,12 @@ import Ouroboros.Consensus.Network.NodeToClient
     ( ClientCodecs, Codecs' (..), DefaultCodecs, clientCodecs, defaultCodecs )
 import Ouroboros.Consensus.Node.NetworkProtocolVersion
     ( HasNetworkProtocolVersion (..), SupportedNetworkProtocolVersion (..) )
+import Ouroboros.Consensus.Shelley.Ledger
+    ( Crypto )
 import Ouroboros.Consensus.Shelley.Ledger.Config
     ( CodecConfig (..) )
 import Ouroboros.Consensus.Shelley.Protocol
     ( TPraosCrypto )
-import Ouroboros.Consensus.Shelley.Protocol.Crypto
-    ( StandardCrypto )
 import Ouroboros.Network.Block
     ( Point
     , SlotNo (..)
@@ -276,12 +272,12 @@ import qualified Shelley.Spec.Ledger.LedgerState as SL
 -- stateful and the node's keep track of the associated connection's cursor.
 data instance Cursor (m Shelley) = Cursor
     (Async ())
-    (Point (CardanoBlock StandardCrypto))
-    (TQueue m (ChainSyncCmd (CardanoBlock StandardCrypto) m))
+    (Point (CardanoBlock TPraosStandardCrypto))
+    (TQueue m (ChainSyncCmd (CardanoBlock TPraosStandardCrypto) m))
 
 -- | Create an instance of the network layer
 withNetworkLayer
-    :: forall sc a. (HasCallStack, sc ~ StandardCrypto)
+    :: forall sc a. (HasCallStack, sc ~ TPraosStandardCrypto)
     => Tracer IO (NetworkLayerLog sc)
         -- ^ Logging of network layer startup
     -> W.NetworkParameters
@@ -353,12 +349,12 @@ withNetworkLayer tr np addrInfo versionData action = do
     connectNodeTipClient
         :: HasCallStack
         => RetryHandlers
-        -> IO ( Chan (Tip (CardanoBlock StandardCrypto))
+        -> IO ( Chan (Tip (CardanoBlock TPraosStandardCrypto))
               , TVar IO W.ProtocolParameters
-              , TMVar IO (CardanoInterpreter StandardCrypto)
+              , TMVar IO (CardanoInterpreter TPraosStandardCrypto)
               , TQueue IO (LocalTxSubmissionCmd
-                  (GenTx (CardanoBlock StandardCrypto))
-                  (CardanoApplyTxErr StandardCrypto)
+                  (GenTx (CardanoBlock TPraosStandardCrypto))
+                  (CardanoApplyTxErr TPraosStandardCrypto)
                   IO)
               )
     connectNodeTipClient handlers = do
@@ -378,7 +374,7 @@ withNetworkLayer tr np addrInfo versionData action = do
         :: HasCallStack
         => RetryHandlers
         -> IO (TQueue IO
-                (LocalStateQueryCmd (CardanoBlock StandardCrypto) IO))
+                (LocalStateQueryCmd (CardanoBlock TPraosStandardCrypto) IO))
     connectDelegationRewardsClient handlers = do
         cmdQ <- atomically newTQueue
         let cl = mkDelegationRewardsClient tr cfg cmdQ
@@ -533,7 +529,7 @@ type NetworkClient m = OuroborosApplication
 -- | Construct a network client with the given communication channel, for the
 -- purposes of syncing blocks to a single wallet.
 mkWalletClient
-    :: (MonadThrow m, MonadST m, MonadTimer m, MonadAsync m, Crypto sc, TPraosCrypto (CardanoEras sc))
+    :: (MonadThrow m, MonadST m, MonadTimer m, MonadAsync m, Crypto sc, TPraosCrypto sc)
     => Tracer m (ChainSyncLog Text Text)
     -> W.GenesisParameters
         -- ^ Static blockchain parameters
@@ -573,7 +569,7 @@ mkWalletClient tr gp chainSyncQ = do
 -- | Construct a network client with the given communication channel, for the
 -- purposes of querying delegations and rewards.
 mkDelegationRewardsClient
-    :: forall sc m. (MonadThrow m, MonadST m, MonadTimer m, TPraosCrypto (ShelleyEra sc))
+    :: forall sc m. (MonadThrow m, MonadST m, MonadTimer m, TPraosCrypto sc)
     => Tracer m (NetworkLayerLog sc)
         -- ^ Base trace for underlying protocols
     -> CodecConfig (CardanoBlock sc)
@@ -607,7 +603,7 @@ mkDelegationRewardsClient tr cfg queryRewardQ =
 nodeToClientVersion :: NodeToClientVersion
 nodeToClientVersion = NodeToClientV_3
 
-codecVersion :: forall sc. TPraosCrypto (ShelleyEra sc) => BlockNodeToClientVersion (CardanoBlock sc)
+codecVersion :: forall sc. TPraosCrypto sc => BlockNodeToClientVersion (CardanoBlock sc)
 codecVersion = verMap ! nodeToClientVersion
     where verMap = supportedNodeToClientVersions (Proxy @(CardanoBlock sc))
 
@@ -616,7 +612,7 @@ codecConfig gp = CardanoCodecConfig (byronCodecConfig gp) ShelleyCodecConfig
 
 -- | A group of codecs which will deserialise block data.
 codecs
-    :: forall m sc. (MonadST m, TPraosCrypto (ShelleyEra sc))
+    :: forall m sc. (MonadST m, TPraosCrypto sc)
     => CodecConfig (CardanoBlock sc)
     -> ClientCodecs (CardanoBlock sc) m
 codecs cfg = clientCodecs cfg codecVersion
@@ -624,7 +620,7 @@ codecs cfg = clientCodecs cfg codecVersion
 -- | A group of codecs which won't deserialise block data. Often only the block
 -- headers are needed. It's more efficient and easier not to deserialise.
 serialisedCodecs
-    :: forall m sc. (MonadST m, TPraosCrypto (ShelleyEra sc))
+    :: forall m sc. (MonadST m, TPraosCrypto sc)
     => CodecConfig (CardanoBlock sc)
     -> DefaultCodecs (CardanoBlock sc) m
 serialisedCodecs cfg = defaultCodecs cfg codecVersion
@@ -643,7 +639,7 @@ type CardanoInterpreter sc = Interpreter (CardanoEras sc)
 --  * Tracking the latest protocol parameters state.
 --  * Querying the history interpreter as necessary.
 mkTipSyncClient
-    :: forall sc m. (HasCallStack, MonadIO m, MonadThrow m, MonadST m, MonadTimer m, TPraosCrypto (ShelleyEra sc))
+    :: forall sc m. (HasCallStack, MonadIO m, MonadThrow m, MonadST m, MonadTimer m, TPraosCrypto sc)
     => Tracer m (NetworkLayerLog sc)
         -- ^ Base trace for underlying protocols
     -> W.NetworkParameters
@@ -1111,7 +1107,7 @@ data QueryClientName
 
 type HandshakeTrace = TraceSendRecv (Handshake NodeToClientVersion CBOR.Term)
 
-instance TPraosCrypto (ShelleyEra sc) => ToText (NetworkLayerLog sc) where
+instance TPraosCrypto sc => ToText (NetworkLayerLog sc) where
     toText = \case
         MsgCouldntConnect n -> T.unwords
             [ "Couldn't connect to node (x" <> toText (n + 1) <> ")."

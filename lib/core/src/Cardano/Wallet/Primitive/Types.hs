@@ -1020,7 +1020,7 @@ fromTransactionInfo info = Tx
 
 -- | Test whether the given metadata map is empty.
 txMetadataIsNull :: TxMetadata -> Bool
-txMetadataIsNull (TxMetadata md) = Map.null md
+txMetadataIsNull (TxMetadata (MD.MetaData md)) = Map.null md
 
 -- | Drop time-specific information
 toTxHistory :: TransactionInfo -> (Tx, TxMeta)

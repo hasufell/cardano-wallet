@@ -13,7 +13,7 @@ module Cardano.Wallet.Orphans where
 import Prelude
 
 import Cardano.Api.Typed
-    ( TxMetadata (..), TxMetadataValue (..) )
+    ( TxMetadata (..) )
 import Cardano.Slotting.Slot
     ( SlotNo (..) )
 import Control.DeepSeq
@@ -36,18 +36,18 @@ instance Ord TxMetadata where
     compare = comparing show
 
 instance Buildable TxMetadata where
-    build (TxMetadata m) =
+    build (TxMetadata (MetaData m)) =
         unlinesF (map buildElem (Map.toList m))
       where
         buildElem (n, d) = nameF ("element " <> build n) $ buildDatum d
         buildDatum = \case
-            TxMetaMap as -> blockListF $ mconcat
+            Map as -> blockListF $ mconcat
                 [ [ nameF "key" (buildDatum k), nameF "val" (buildDatum v) ]
                 | (k, v) <- as ]
-            TxMetaList xs -> nameF "list" $ blockListF (map buildDatum xs)
-            TxMetaNumber i -> build i
-            TxMetaBytes bs -> hexF bs
-            TxMetaText s -> build (show s)
+            List xs -> nameF "list" $ blockListF (map buildDatum xs)
+            I i -> build i
+            B bs -> hexF bs
+            S s -> build (show s)
 
 instance NFData MetaDatum
 
@@ -55,10 +55,3 @@ instance NFData MetaData
 
 instance NFData TxMetadata where
     rnf (TxMetadata md) = rnf md
-
-instance NFData TxMetadataValue where
-    rnf (TxMetaNumber x) = rnf x
-    rnf (TxMetaBytes x) = rnf x
-    rnf (TxMetaText x) = rnf x
-    rnf (TxMetaList x) = rnf x
-    rnf (TxMetaMap x) = rnf x

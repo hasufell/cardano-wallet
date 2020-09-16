@@ -111,6 +111,8 @@ import Ouroboros.Consensus.Byron.Ledger
     ( ByronBlock (..), ByronHash (..), GenTx, fromMempoolPayload )
 import Ouroboros.Consensus.Byron.Ledger.Config
     ( CodecConfig (..) )
+import Ouroboros.Consensus.Config.SecurityParam
+    ( SecurityParam (..) )
 import Ouroboros.Consensus.HardFork.History.Summary
     ( Bound (..) )
 import Ouroboros.Network.Block
@@ -318,7 +320,9 @@ toGenTx =
 
 byronCodecConfig :: W.GenesisParameters -> CodecConfig ByronBlock
 byronCodecConfig W.GenesisParameters{getEpochLength,getEpochStability} =
-    ByronCodecConfig (toEpochSlots getEpochLength)
+    ByronCodecConfig (toEpochSlots getEpochLength) (SecurityParam k)
+  where
+    k = fromIntegral . getQuantity $ getEpochStability
 
 fromByronBlock :: W.GenesisParameters -> ByronBlock -> W.Block
 fromByronBlock gp byronBlk = case byronBlockRaw byronBlk of
@@ -347,8 +351,10 @@ toByronBlockHeader gp blk = W.BlockHeader
         fromByronHash $ O.blockHash blk
     , parentHeaderHash =
         fromChainHash (W.getGenesisBlockHash gp) $
-        headerPrevHash (O.getHeader blk)
+        headerPrevHash cfg (O.getHeader blk)
     }
+  where
+    cfg = byronCodecConfig gp
 
 fromTxAux :: TxAux -> W.Tx
 fromTxAux txAux = case taTx txAux of

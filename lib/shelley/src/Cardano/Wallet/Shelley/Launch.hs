@@ -1446,7 +1446,7 @@ addGenesisFilePath path = HM.insert "ShelleyGenesisFile" (toJSON path)
 -- | Add a @setupScribes[1].scMinSev@ field in a given config object.
 -- The full lens library would be quite helpful here.
 addMinSeverityStdout
-    :: Monad m
+    :: (MonadFail m, Monad m)
     => Severity
     -> Aeson.Object
     -> m Aeson.Object
