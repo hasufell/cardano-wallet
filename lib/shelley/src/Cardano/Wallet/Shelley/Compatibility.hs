@@ -27,7 +27,7 @@ module Cardano.Wallet.Shelley.Compatibility
     , CardanoBlock
 
     , NodeVersionData
-    , TPraosCrypto
+    , StandardShelley
 
       -- * Chain Parameters
     , mainnetVersionData
@@ -180,7 +180,13 @@ import GHC.Stack
 import Numeric.Natural
     ( Natural )
 import Ouroboros.Consensus.Cardano.Block
-    ( CardanoBlock, CardanoEras, CardanoGenTx, GenTx (..), HardForkBlock (..) )
+    ( CardanoBlock
+    , CardanoEras
+    , CardanoGenTx
+    , GenTx (..)
+    , HardForkBlock (..)
+    , ShelleyEra
+    )
 import Ouroboros.Consensus.HardFork.Combinator.AcrossEras
     ( OneEraHash (..) )
 import Ouroboros.Consensus.HardFork.History.Summary
@@ -356,7 +362,7 @@ toCardanoBlockHeader gp = \case
 toShelleyBlockHeader
     :: Crypto sc
     => W.Hash "Genesis"
-    -> ShelleyBlock sc
+    -> ShelleyBlock (ShelleyEra sc)
     -> W.BlockHeader
 toShelleyBlockHeader genesisHash blk =
     let
@@ -374,7 +380,7 @@ toShelleyBlockHeader genesisHash blk =
                     SL.bheaderPrev header
             }
 
-getProducer :: Crypto sc => ShelleyBlock sc -> W.PoolId
+getProducer :: Crypto sc => ShelleyBlock (ShelleyEra sc) -> W.PoolId
 getProducer (ShelleyBlock (SL.Block (SL.BHeader header _) _) _) =
     fromPoolKeyHash $ SL.hashKey (SL.bheaderVk header)
 
@@ -401,7 +407,7 @@ fromCardanoBlock gp = \case
 
 poolCertsFromShelleyBlock
     :: Crypto sc
-    => ShelleyBlock sc
+    => ShelleyBlock (ShelleyEra sc)
     -> (W.SlotNo, [W.PoolCertificate])
 poolCertsFromShelleyBlock blk =
     let
@@ -435,7 +441,7 @@ fromChainHash genesisHash = \case
 
 fromShelleyChainHash
     :: W.Hash "Genesis"
-    -> ChainHash (ShelleyBlock sc)
+    -> ChainHash (ShelleyBlock (ShelleyEra sc))
     -> W.Hash "BlockHeader"
 fromShelleyChainHash genesisHash = \case
     O.GenesisHash -> coerce genesisHash
@@ -555,8 +561,8 @@ minimumUTxOvalueFromPParams pp = toWalletCoin $ SL._minUTxOValue pp
 -- | Convert genesis data into blockchain params and an initial set of UTxO
 fromGenesisData
     :: forall crypto. (Crypto crypto)
-    => ShelleyGenesis crypto
-    -> [(SL.Addr crypto, SL.Coin)]
+    => ShelleyGenesis (ShelleyEra crypto)
+    -> [(SL.Addr (ShelleyEra crypto), SL.Coin)]
     -> (W.NetworkParameters, W.Block)
 fromGenesisData g initialFunds =
     ( W.NetworkParameters
@@ -593,7 +599,7 @@ fromGenesisData g initialFunds =
     -- block0 on jormungandr. This function is a method to deal with the
     -- discrepancy.
     genesisBlockFromTxOuts
-        :: [(SL.Addr crypto, SL.Coin)] -> W.Block
+        :: [(SL.Addr (ShelleyEra crypto), SL.Coin)] -> W.Block
     genesisBlockFromTxOuts outs = W.Block
         { delegations  = []
         , header = W.BlockHeader
@@ -617,7 +623,7 @@ fromGenesisData g initialFunds =
             Nothing
           where
             W.TxIn pseudoHash _ = fromShelleyTxIn $
-                SL.initialFundsPseudoTxIn @crypto addr
+                SL.initialFundsPseudoTxIn @(ShelleyEra crypto) addr
 
 fromNetworkMagic :: NetworkMagic -> W.ProtocolMagic
 fromNetworkMagic (NetworkMagic magic) =
@@ -661,18 +667,18 @@ optimumNumberOfPools = unsafeConvert . SL._nOpt
 fromShelleyTxId :: SL.TxId crypto -> W.Hash "Tx"
 fromShelleyTxId (SL.TxId (UnsafeHash h)) = W.Hash $ fromShort h
 
-fromShelleyTxIn :: Crypto crypto => SL.TxIn crypto -> W.TxIn
+fromShelleyTxIn :: (Crypto crypto) => SL.TxIn (ShelleyEra crypto) -> W.TxIn
 fromShelleyTxIn (SL.TxIn txid ix) =
     W.TxIn (fromShelleyTxId txid) (unsafeCast ix)
   where
     unsafeCast :: Natural -> Word32
     unsafeCast = fromIntegral
 
-fromShelleyTxOut :: Crypto crypto =>  SL.TxOut crypto -> W.TxOut
+fromShelleyTxOut :: Crypto crypto =>  SL.TxOut (ShelleyEra crypto) -> W.TxOut
 fromShelleyTxOut (SL.TxOut addr amount) =
   W.TxOut (fromShelleyAddress addr) (fromShelleyCoin amount)
 
-fromShelleyAddress :: SL.Addr crypto -> W.Address
+fromShelleyAddress :: SL.Addr (ShelleyEra crypto) -> W.Address
 fromShelleyAddress = W.Address
     . SL.serialiseAddr
 
@@ -692,7 +698,7 @@ toShelleyCoin (W.Coin c) = SL.Coin $ safeCast c
 -- NOTE: For resolved inputs we have to pass in a dummy value of 0.
 fromShelleyTx
     :: Crypto crypto
-    => SL.Tx crypto
+    => SL.Tx (ShelleyEra crypto)
     -> ( W.Tx
        , [W.DelegationCertificate]
        , [W.PoolCertificate]
@@ -703,7 +709,8 @@ fromShelleyTx (SL.Tx bod@(SL.TxBody ins outs certs wdrls _ _ _ _) _ mmd) =
         (map ((,W.Coin 0) . fromShelleyTxIn) (toList ins))
         (map fromShelleyTxOut (toList outs))
         (fromShelleyWdrl wdrls)
-        ((\Cardano.TxMetadata tx -> tx) <$> SL.strictMaybeToMaybe mmd)
+        undefined
+        -- (Cardano.TxMetadata <$> SL.strictMaybeToMaybe mmd)
     , mapMaybe fromShelleyDelegationCert (toList certs)
     , mapMaybe fromShelleyRegistrationCert (toList certs)
     )
@@ -834,7 +841,7 @@ sealShelleyTx (Cardano.ShelleyTx tx) =
     let
         -- The Cardano.Tx GADT won't allow the Shelley crypto type param escape,
         -- so we convert directly to the concrete wallet Tx type:
-        (walletTx, _, _) = fromShelleyTx @StandardShelley tx
+        (walletTx, _, _) = fromShelleyTx tx
         sealed = serialize' $ O.mkShelleyTx tx
     in
         (walletTx, W.SealedTx sealed)
